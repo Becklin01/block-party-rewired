@@ -460,9 +460,11 @@ export default function Tetris() {
                 <div>Z  Rotate ←</div>
                 <div>Space  Hard drop</div>
                 <div>C / Shift  Hold</div>
+                <div>1 2 3  Abilities</div>
                 <div>Esc  Pause</div>
               </div>
             </SidePanel>
+
           </div>
         </div>
       )}
