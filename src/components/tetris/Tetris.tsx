@@ -521,13 +521,40 @@ export default function Tetris() {
                 {next.slice(0, 4).map((t, i) => <MiniPiece key={i} type={t} cell={14} />)}
               </div>
             </SidePanel>
-            <SidePanel title="STATS">
-              <Stat label="SCORE" value={score.toLocaleString()} />
-              <Stat label="LINES" value={lines} />
-              <Stat label="LEVEL" value={level} />
+            <SidePanel title={MODE_META[mode].name}>
+              {mode === "sprint" && (
+                <>
+                  <Stat label="LINES" value={`${lines} / ${SPRINT_GOAL}`} highlight />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                  <Stat label="PPS" value={(lines && elapsed ? (lines / (elapsed / 1000)).toFixed(2) : "0.00")} />
+                </>
+              )}
+              {mode === "ultra" && (
+                <>
+                  <Stat label="TIME LEFT" value={fmtTime(Math.max(0, ULTRA_DURATION_MS - elapsed))} highlight={elapsed > ULTRA_DURATION_MS - 30000} />
+                  <Stat label="SCORE" value={score.toLocaleString()} />
+                  <Stat label="LINES" value={lines} />
+                </>
+              )}
+              {mode === "marathon" && (
+                <>
+                  <Stat label="SCORE" value={score.toLocaleString()} />
+                  <Stat label="LINES" value={lines} />
+                  <Stat label="LEVEL" value={level} />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                </>
+              )}
+              {mode === "zen" && (
+                <>
+                  <Stat label="LINES" value={lines} />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                  <Stat label="LEVEL" value={level} />
+                </>
+              )}
               <Stat label="SPEED" value={`${speed}/s`} />
               <Stat label="COMBO" value={combo > 1 ? `x${combo}` : "—"} highlight={combo > 1} />
             </SidePanel>
+
             <SidePanel title="CONTROLS">
               <div className="text-[10px] leading-relaxed text-white/60 space-y-1">
                 <div>← →  Move</div>
