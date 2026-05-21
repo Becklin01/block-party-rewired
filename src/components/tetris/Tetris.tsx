@@ -152,7 +152,9 @@ export default function Tetris() {
       setCombo(newCombo);
       setScore(s => s + base + comboBonus);
       setLines(l => l + rows.length);
+      setEnergy(e => Math.min(100, e + rows.length * 12 + (newCombo > 1 ? 4 : 0)));
       if (rows.length >= 3) setShake(rows.length >= 4 ? 18 : 10);
+
       if (rows.length === 4) {
         setSlowMo(true);
         setTimeout(() => setSlowMo(false), 420);
