@@ -46,13 +46,19 @@ export default function Tetris() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [floatTexts, setFloatTexts] = useState<{ id: number; text: string; x: number; y: number }[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [energy, setEnergy] = useState(0);
+  const [frozen, setFrozen] = useState(false);
+  const [freezeUntil, setFreezeUntil] = useState(0);
+  const [, setNow] = useState(0);
 
   const level = levelForLines(lines);
   const gravity = gravityMs(level) * (slowMo ? 2.5 : 1);
 
   const boardRef = useRef(board);
   const pieceRef = useRef(piece);
-  boardRef.current = board; pieceRef.current = piece;
+  const energyRef = useRef(energy);
+  boardRef.current = board; pieceRef.current = piece; energyRef.current = energy;
+
 
   useEffect(() => { setScores(loadScores()); }, []);
 
