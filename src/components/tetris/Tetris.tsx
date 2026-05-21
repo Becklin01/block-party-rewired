@@ -443,9 +443,11 @@ export default function Tetris() {
       }}>
       <BgGrid />
 
-      {screen === "menu" && <Menu onStart={startGame} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
+      {screen === "menu" && <Menu onPlay={() => setScreen("modes")} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
+      {screen === "modes" && <ModeSelect onPick={(m) => startGame(m)} onBack={() => setScreen("menu")} />}
       {screen === "leaderboard" && <Leaderboard scores={scores} onBack={() => setScreen("menu")} />}
       {screen === "settings" && <Settings onBack={() => setScreen("menu")} />}
+
 
       {(screen === "playing" || screen === "paused" || screen === "over") && (
         <div
