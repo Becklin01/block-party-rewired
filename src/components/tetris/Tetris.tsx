@@ -101,11 +101,12 @@ export default function Tetris() {
     return { bag: b, next: n };
   }, []);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((selected: GameMode = mode) => {
     const initialBag = newBag();
     const { bag: b, next: n } = drawNext(initialBag, []);
     const first = n.shift()!;
     const r = drawNext(b, n);
+    setMode(selected);
     setBoard(emptyBoard());
     setPiece(spawnPiece(first));
     setBag(r.bag); setNext(r.next);
@@ -114,9 +115,22 @@ export default function Tetris() {
     setFlashRows([]); setShake(0); setSlowMo(false);
     setParticles([]); setFloatTexts([]);
     setEnergy(0); setFrozen(false); setFreezeUntil(0);
+    setStartedAt(Date.now()); setElapsed(0); setFinalTime(0);
     setScreen("playing");
+  }, [drawNext, mode]);
 
-  }, [drawNext]);
+  const finishGame = useCallback((reason: "topout" | "complete" | "timeup" = "topout") => {
+    sfx.over();
+    const t = Date.now() - startedAt;
+    setFinalTime(t);
+    setScreen("over");
+    if (mode === "zen") return; // no saving in zen
+    const s: Score = { name: "YOU", mode, score, lines, level, timeMs: t, date: Date.now() };
+    const all = [...loadScores(), s];
+    saveScores(all);
+    setScores(rankScores(all, mode));
+    void reason;
+  }, [score, lines, level, mode, startedAt]);
 
   const spawnNext = useCallback((curBag: PieceType[], curNext: PieceType[], curBoard: Board) => {
     const type = curNext[0];
@@ -124,20 +138,22 @@ export default function Tetris() {
     const rest = curNext.slice(1);
     const r = drawNext(curBag, rest);
     if (collides(curBoard, np)) {
-      // game over
-      finishGame();
+      if (mode === "zen") {
+        // Clear bottom 4 rows to keep playing
+        const cleaned = curBoard.map((row, i) => i >= ROWS - 4 ? Array(COLS).fill(0) : row);
+        const np2 = spawnPiece(type);
+        if (collides(cleaned, np2)) { finishGame("topout"); return; }
+        setBoard(cleaned);
+        setPiece(np2); setBag(r.bag); setNext(r.next); setCanHold(true);
+        return;
+      }
+      finishGame("topout");
       return;
     }
     setPiece(np); setBag(r.bag); setNext(r.next); setCanHold(true);
-  }, [drawNext]); // eslint-disable-line
+  }, [drawNext, mode, finishGame]);
 
-  const finishGame = useCallback(() => {
-    sfx.over();
-    setScreen("over");
-    const s: Score = { name: "YOU", score, lines, level, date: Date.now() };
-    const all = [...loadScores(), s].sort((a, b) => b.score - a.score).slice(0, 10);
-    saveScores(all); setScores(all);
-  }, [score, lines, level]);
+
 
   const spawnParticles = useCallback((rows: number[]) => {
     const cellSize = 28;
