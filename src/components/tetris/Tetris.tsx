@@ -174,9 +174,9 @@ export default function Tetris() {
     }
   }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText]);
 
-  // Gravity
+  // Gravity (paused while frozen)
   useEffect(() => {
-    if (screen !== "playing" || !piece) return;
+    if (screen !== "playing" || !piece || frozen) return;
     const t = setInterval(() => {
       const p = pieceRef.current; if (!p) return;
       const moved = tryMove(boardRef.current, p, 1, 0);
@@ -184,7 +184,126 @@ export default function Tetris() {
       else handleLock(p);
     }, gravity);
     return () => clearInterval(t);
-  }, [screen, piece, gravity, handleLock]);
+  }, [screen, piece, gravity, handleLock, frozen]);
+
+  // Freeze timer
+  useEffect(() => {
+    if (!frozen) return;
+    const t = setInterval(() => {
+      setNow(n => n + 1);
+      if (Date.now() >= freezeUntil) setFrozen(false);
+    }, 100);
+    return () => clearInterval(t);
+  }, [frozen, freezeUntil]);
+
+  const spendEnergy = useCallback((cost: number) => {
+    if (energyRef.current < cost) { sfx.noEnergy(); return false; }
+    setEnergy(e => Math.max(0, e - cost));
+    return true;
+  }, []);
+
+  // Piece cell offsets for each type/rotation (mirrors engine SHAPES)
+  const PIECE_OFFS: Record<PieceType, number[][][]> = useMemo(() => ({
+    I:[[[0,0],[0,1],[0,2],[0,3]],[[0,2],[1,2],[2,2],[3,2]],[[1,0],[1,1],[1,2],[1,3]],[[0,1],[1,1],[2,1],[3,1]]],
+    O:[[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]]],
+    T:[[[0,1],[1,0],[1,1],[1,2]],[[0,1],[1,1],[1,2],[2,1]],[[1,0],[1,1],[1,2],[2,1]],[[0,1],[1,0],[1,1],[2,1]]],
+    S:[[[0,1],[0,2],[1,0],[1,1]],[[0,1],[1,1],[1,2],[2,2]],[[1,1],[1,2],[2,0],[2,1]],[[0,0],[1,0],[1,1],[2,1]]],
+    Z:[[[0,0],[0,1],[1,1],[1,2]],[[0,2],[1,1],[1,2],[2,1]],[[1,0],[1,1],[2,1],[2,2]],[[0,1],[1,0],[1,1],[2,0]]],
+    J:[[[0,0],[1,0],[1,1],[1,2]],[[0,1],[0,2],[1,1],[2,1]],[[1,0],[1,1],[1,2],[2,2]],[[0,1],[1,1],[2,0],[2,1]]],
+    L:[[[0,2],[1,0],[1,1],[1,2]],[[0,1],[1,1],[2,1],[2,2]],[[1,0],[1,1],[1,2],[2,0]],[[0,0],[0,1],[1,1],[2,1]]],
+  }), []);
+
+  const useBomb = useCallback(() => {
+    const p = pieceRef.current; if (!p) return;
+    if (!spendEnergy(ABILITY_COST.bomb)) return;
+    sfx.bomb();
+    // 3x3 around piece bbox center
+    const offs = PIECE_OFFS[p.type][p.rot];
+    let rSum = 0, cSum = 0;
+    for (const [r, c] of offs) { rSum += r; cSum += c; }
+    const cr = p.r + Math.round(rSum / offs.length);
+    const cc = p.c + Math.round(cSum / offs.length);
+    const nb = boardRef.current.map(row => [...row]);
+    const cleared: [number, number][] = [];
+    for (let r = cr - 1; r <= cr + 1; r++) {
+      for (let c = cc - 1; c <= cc + 1; c++) {
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS && nb[r][c] !== 0) {
+          cleared.push([r, c]);
+          nb[r][c] = 0;
+        }
+      }
+    }
+    const cellSize = 28;
+    const ps: Particle[] = [];
+    let id = Date.now();
+    for (const [r, c] of cleared) {
+      for (let k = 0; k < 6; k++) {
+        ps.push({
+          id: id++,
+          x: 8 + c * (cellSize + 2) + cellSize / 2,
+          y: 8 + r * (cellSize + 2) + cellSize / 2,
+          vx: (Math.random() - 0.5) * 420,
+          vy: (Math.random() - 1) * 320,
+          life: 1, color: "#f87171", size: 2 + Math.random() * 3,
+        });
+      }
+    }
+    setParticles(prev => [...prev, ...ps]);
+    setShake(s => Math.max(s, 14));
+    setBoard(nb);
+    addFloatText("BOOM!");
+  }, [spendEnergy, addFloatText, PIECE_OFFS]);
+
+  const useFreeze = useCallback(() => {
+    if (!spendEnergy(ABILITY_COST.freeze)) return;
+    sfx.freeze();
+    setFrozen(true);
+    setFreezeUntil(Date.now() + 5000);
+    addFloatText("FREEZE");
+  }, [spendEnergy, addFloatText]);
+
+  const useDrill = useCallback(() => {
+    const p = pieceRef.current; if (!p) return;
+    if (!spendEnergy(ABILITY_COST.drill)) return;
+    sfx.drill();
+    const cols = new Set<number>();
+    for (const [, c] of PIECE_OFFS[p.type][p.rot]) cols.add(p.c + c);
+    const nb = boardRef.current.map(row => [...row]);
+    const cleared: [number, number][] = [];
+    for (const c of cols) {
+      for (let r = 0; r < ROWS; r++) {
+        if (c >= 0 && c < COLS && nb[r][c] !== 0) {
+          cleared.push([r, c]);
+          nb[r][c] = 0;
+        }
+      }
+    }
+    const cellSize = 28;
+    const ps: Particle[] = [];
+    let id = Date.now();
+    for (const [r, c] of cleared) {
+      for (let k = 0; k < 4; k++) {
+        ps.push({
+          id: id++,
+          x: 8 + c * (cellSize + 2) + cellSize / 2,
+          y: 8 + r * (cellSize + 2) + cellSize / 2,
+          vx: (Math.random() - 0.5) * 200,
+          vy: (Math.random() - 2) * 280,
+          life: 1, color: "#fb923c", size: 2 + Math.random() * 3,
+        });
+      }
+    }
+    setParticles(prev => [...prev, ...ps]);
+    setShake(s => Math.max(s, 10));
+    setBoard(nb);
+    addFloatText("DRILL!");
+  }, [spendEnergy, addFloatText, PIECE_OFFS]);
+
+  const useAbility = useCallback((a: Ability) => {
+    if (a === "bomb") useBomb();
+    else if (a === "freeze") useFreeze();
+    else useDrill();
+  }, [useBomb, useFreeze, useDrill]);
 
   // Screen shake decay
   useEffect(() => {
