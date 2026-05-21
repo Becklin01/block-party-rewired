@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyBoard, newBag, spawnPiece, tryMove, tryRotate, collides, lockPiece, clearLines,
-  ghostPosition, gravityMs, levelForLines, LINE_SCORES, COLORS, TYPE_ID,
+  ghostPosition, gravityMs, levelForLines, LINE_SCORES, COLORS, TYPE_ID, ROWS, COLS,
   type Board, type Piece, type PieceType,
 } from "@/lib/tetris/engine";
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
 import { sfx } from "@/lib/tetris/audio";
+
+type Ability = "bomb" | "freeze" | "drill";
+const ABILITY_COST: Record<Ability, number> = { bomb: 50, freeze: 40, drill: 60 };
+const ABILITY_META: Record<Ability, { name: string; key: string; color: string; glyph: string; desc: string }> = {
+  bomb:   { name: "BOMB",   key: "1", color: "#f87171", glyph: "✸", desc: "Clear 3×3 around piece" },
+  freeze: { name: "FREEZE", key: "2", color: "#22d3ee", glyph: "❄", desc: "Stop gravity 5s" },
+  drill:  { name: "DRILL",  key: "3", color: "#fb923c", glyph: "▼", desc: "Clear column below" },
+};
+
 
 type Screen = "menu" | "playing" | "paused" | "over" | "leaderboard" | "settings";
 
