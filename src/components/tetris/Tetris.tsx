@@ -604,3 +604,62 @@ function Settings({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
+
+function EnergyBar({ value, frozen, freezeUntil }: { value: number; frozen: boolean; freezeUntil: number }) {
+  const remain = frozen ? Math.max(0, Math.ceil((freezeUntil - Date.now()) / 1000)) : 0;
+  return (
+    <div>
+      <div className="relative h-3 rounded-full bg-white/5 overflow-hidden border border-white/10">
+        <div
+          className="absolute inset-y-0 left-0 transition-all duration-200"
+          style={{
+            width: `${value}%`,
+            background: "linear-gradient(90deg, #a855f7, #ec4899, #f59e0b)",
+            boxShadow: "0 0 12px rgba(236,72,153,0.6)",
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] mt-1 text-white/50 tracking-widest">
+        <span>{Math.floor(value)}%</span>
+        {frozen && <span className="text-cyan-300 [text-shadow:_0_0_8px_#22d3ee]">FROZEN {remain}s</span>}
+      </div>
+    </div>
+  );
+}
+
+function AbilityButton({ ability, energy, onUse }: { ability: Ability; energy: number; onUse: () => void }) {
+  const meta = ABILITY_META[ability];
+  const cost = ABILITY_COST[ability];
+  const ready = energy >= cost;
+  return (
+    <button
+      onClick={onUse}
+      onMouseEnter={() => sfx.hover()}
+      disabled={!ready}
+      className={`relative w-full rounded-lg border px-2 py-1.5 text-left transition-all ${
+        ready
+          ? "border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02] cursor-pointer"
+          : "border-white/5 bg-white/[0.02] opacity-50 cursor-not-allowed"
+      }`}
+      style={ready ? { boxShadow: `0 0 14px -4px ${meta.color}88` } : undefined}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="text-lg leading-none w-6 h-6 flex items-center justify-center rounded"
+          style={{ color: meta.color, textShadow: ready ? `0 0 10px ${meta.color}` : undefined }}
+        >
+          {meta.glyph}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-bold tracking-widest text-white">{meta.name}</div>
+          <div className="text-[9px] text-white/50 leading-tight truncate">{meta.desc}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-white/40">[{meta.key}]</div>
+          <div className="text-[10px] font-bold" style={{ color: ready ? meta.color : "#888" }}>{cost}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
