@@ -17,17 +17,42 @@ const ABILITY_META: Record<Ability, { name: string; key: string; color: string; 
 };
 
 
-type Screen = "menu" | "playing" | "paused" | "over" | "leaderboard" | "settings";
+type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings";
 
-interface Score { name: string; score: number; lines: number; level: number; date: number; }
+export type GameMode = "marathon" | "sprint" | "ultra" | "zen";
+const MODE_META: Record<GameMode, { name: string; tag: string; desc: string; color: string }> = {
+  marathon: { name: "MARATHON", tag: "endless",  desc: "Survive as long as you can — speed ramps up with level.",     color: "#a855f7" },
+  sprint:   { name: "SPRINT",   tag: "40 lines", desc: "Clear 40 lines as fast as possible. Lowest time wins.",       color: "#22d3ee" },
+  ultra:    { name: "ULTRA",    tag: "2 min",    desc: "Score as much as possible in 2 minutes.",                     color: "#f59e0b" },
+  zen:      { name: "ZEN",      tag: "no fail",  desc: "Relaxed mode — no top-out, no timer. Just play.",             color: "#4ade80" },
+};
+const SPRINT_GOAL = 40;
+const ULTRA_DURATION_MS = 2 * 60 * 1000;
 
-const STORAGE_KEY = "tetris.scores.v1";
+interface Score { name: string; mode: GameMode; score: number; lines: number; level: number; timeMs: number; date: number; }
+
+const STORAGE_KEY = "tetris.scores.v2";
 
 function loadScores(): Score[] {
   if (typeof window === "undefined") return [];
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
 }
 function saveScores(s: Score[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+function fmtTime(ms: number) {
+  if (ms < 0) ms = 0;
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${m}:${s.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
+}
+
+function rankScores(all: Score[], mode: GameMode): Score[] {
+  const filtered = all.filter(s => s.mode === mode);
+  if (mode === "sprint") return filtered.sort((a, b) => a.timeMs - b.timeMs).slice(0, 10);
+  return filtered.sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
 
 export default function Tetris() {
   const [screen, setScreen] = useState<Screen>("menu");
@@ -49,7 +74,12 @@ export default function Tetris() {
   const [energy, setEnergy] = useState(0);
   const [frozen, setFrozen] = useState(false);
   const [freezeUntil, setFreezeUntil] = useState(0);
+  const [mode, setMode] = useState<GameMode>("marathon");
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [finalTime, setFinalTime] = useState(0);
   const [, setNow] = useState(0);
+
 
   const level = levelForLines(lines);
   const gravity = gravityMs(level) * (slowMo ? 2.5 : 1);
@@ -71,11 +101,12 @@ export default function Tetris() {
     return { bag: b, next: n };
   }, []);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((selected: GameMode = mode) => {
     const initialBag = newBag();
     const { bag: b, next: n } = drawNext(initialBag, []);
     const first = n.shift()!;
     const r = drawNext(b, n);
+    setMode(selected);
     setBoard(emptyBoard());
     setPiece(spawnPiece(first));
     setBag(r.bag); setNext(r.next);
@@ -84,9 +115,22 @@ export default function Tetris() {
     setFlashRows([]); setShake(0); setSlowMo(false);
     setParticles([]); setFloatTexts([]);
     setEnergy(0); setFrozen(false); setFreezeUntil(0);
+    setStartedAt(Date.now()); setElapsed(0); setFinalTime(0);
     setScreen("playing");
+  }, [drawNext, mode]);
 
-  }, [drawNext]);
+  const finishGame = useCallback((reason: "topout" | "complete" | "timeup" = "topout") => {
+    sfx.over();
+    const t = Date.now() - startedAt;
+    setFinalTime(t);
+    setScreen("over");
+    if (mode === "zen") return; // no saving in zen
+    const s: Score = { name: "YOU", mode, score, lines, level, timeMs: t, date: Date.now() };
+    const all = [...loadScores(), s];
+    saveScores(all);
+    setScores(rankScores(all, mode));
+    void reason;
+  }, [score, lines, level, mode, startedAt]);
 
   const spawnNext = useCallback((curBag: PieceType[], curNext: PieceType[], curBoard: Board) => {
     const type = curNext[0];
@@ -94,20 +138,22 @@ export default function Tetris() {
     const rest = curNext.slice(1);
     const r = drawNext(curBag, rest);
     if (collides(curBoard, np)) {
-      // game over
-      finishGame();
+      if (mode === "zen") {
+        // Clear bottom 4 rows to keep playing
+        const cleaned = curBoard.map((row, i) => i >= ROWS - 4 ? Array(COLS).fill(0) : row);
+        const np2 = spawnPiece(type);
+        if (collides(cleaned, np2)) { finishGame("topout"); return; }
+        setBoard(cleaned);
+        setPiece(np2); setBag(r.bag); setNext(r.next); setCanHold(true);
+        return;
+      }
+      finishGame("topout");
       return;
     }
     setPiece(np); setBag(r.bag); setNext(r.next); setCanHold(true);
-  }, [drawNext]); // eslint-disable-line
+  }, [drawNext, mode, finishGame]);
 
-  const finishGame = useCallback(() => {
-    sfx.over();
-    setScreen("over");
-    const s: Score = { name: "YOU", score, lines, level, date: Date.now() };
-    const all = [...loadScores(), s].sort((a, b) => b.score - a.score).slice(0, 10);
-    saveScores(all); setScores(all);
-  }, [score, lines, level]);
+
 
   const spawnParticles = useCallback((rows: number[]) => {
     const cellSize = 28;
@@ -151,9 +197,16 @@ export default function Tetris() {
       const comboBonus = newCombo > 1 ? 50 * (newCombo - 1) * level : 0;
       setCombo(newCombo);
       setScore(s => s + base + comboBonus);
-      setLines(l => l + rows.length);
+      setLines(l => {
+        const nl = l + rows.length;
+        if (mode === "sprint" && l < SPRINT_GOAL && nl >= SPRINT_GOAL) {
+          setTimeout(() => finishGame("complete"), 250);
+        }
+        return nl;
+      });
       setEnergy(e => Math.min(100, e + rows.length * 12 + (newCombo > 1 ? 4 : 0)));
       if (rows.length >= 3) setShake(rows.length >= 4 ? 18 : 10);
+
 
       if (rows.length === 4) {
         setSlowMo(true);
@@ -172,7 +225,19 @@ export default function Tetris() {
       setBoard(locked);
       spawnNext(bag, next, locked);
     }
-  }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText]);
+  }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText, mode, finishGame]);
+
+  // Game timer (ticks every 100ms while playing)
+  useEffect(() => {
+    if (screen !== "playing") return;
+    const t = setInterval(() => {
+      const e = Date.now() - startedAt;
+      setElapsed(e);
+      if (mode === "ultra" && e >= ULTRA_DURATION_MS) finishGame("timeup");
+    }, 100);
+    return () => clearInterval(t);
+  }, [screen, startedAt, mode, finishGame]);
+
 
   // Gravity (paused while frozen)
   useEffect(() => {
@@ -341,10 +406,11 @@ export default function Tetris() {
   // Input
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (screen === "menu") {
-        if (e.key === "Enter") startGame();
+      if (screen === "menu" || screen === "modes") {
+        if (e.key === "Enter") setScreen("modes");
         return;
       }
+
       if (e.key === "Escape") {
         if (screen === "playing") setScreen("paused");
         else if (screen === "paused") setScreen("playing");
@@ -377,9 +443,11 @@ export default function Tetris() {
       }}>
       <BgGrid />
 
-      {screen === "menu" && <Menu onStart={startGame} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
+      {screen === "menu" && <Menu onPlay={() => setScreen("modes")} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
+      {screen === "modes" && <ModeSelect onPick={(m) => startGame(m)} onBack={() => setScreen("menu")} />}
       {screen === "leaderboard" && <Leaderboard scores={scores} onBack={() => setScreen("menu")} />}
       {screen === "settings" && <Settings onBack={() => setScreen("menu")} />}
+
 
       {(screen === "playing" || screen === "paused" || screen === "over") && (
         <div
@@ -427,15 +495,23 @@ export default function Tetris() {
             {screen === "paused" && <Overlay title="PAUSED" subtitle="Press ESC to resume" />}
             {screen === "over" && (
               <Overlay
-                title="GAME OVER"
-                subtitle={`Score ${score} · Lines ${lines}`}
+                title={mode === "sprint" && lines >= SPRINT_GOAL ? "FINISHED!" : mode === "ultra" ? "TIME UP" : "GAME OVER"}
+                subtitle={
+                  mode === "sprint"
+                    ? `${lines} lines in ${fmtTime(finalTime)}`
+                    : mode === "ultra"
+                    ? `Score ${score.toLocaleString()} · ${lines} lines`
+                    : `Score ${score.toLocaleString()} · ${lines} lines · ${fmtTime(finalTime)}`
+                }
                 actions={
                   <>
-                    <NeonButton onClick={startGame}>Retry</NeonButton>
+                    <NeonButton onClick={() => startGame(mode)}>Retry</NeonButton>
+                    <NeonButton onClick={() => setScreen("modes")} variant="ghost">Modes</NeonButton>
                     <NeonButton onClick={() => setScreen("menu")} variant="ghost">Menu</NeonButton>
                   </>
                 }
               />
+
             )}
           </div>
 
@@ -445,13 +521,40 @@ export default function Tetris() {
                 {next.slice(0, 4).map((t, i) => <MiniPiece key={i} type={t} cell={14} />)}
               </div>
             </SidePanel>
-            <SidePanel title="STATS">
-              <Stat label="SCORE" value={score.toLocaleString()} />
-              <Stat label="LINES" value={lines} />
-              <Stat label="LEVEL" value={level} />
+            <SidePanel title={MODE_META[mode].name}>
+              {mode === "sprint" && (
+                <>
+                  <Stat label="LINES" value={`${lines} / ${SPRINT_GOAL}`} highlight />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                  <Stat label="PPS" value={(lines && elapsed ? (lines / (elapsed / 1000)).toFixed(2) : "0.00")} />
+                </>
+              )}
+              {mode === "ultra" && (
+                <>
+                  <Stat label="TIME LEFT" value={fmtTime(Math.max(0, ULTRA_DURATION_MS - elapsed))} highlight={elapsed > ULTRA_DURATION_MS - 30000} />
+                  <Stat label="SCORE" value={score.toLocaleString()} />
+                  <Stat label="LINES" value={lines} />
+                </>
+              )}
+              {mode === "marathon" && (
+                <>
+                  <Stat label="SCORE" value={score.toLocaleString()} />
+                  <Stat label="LINES" value={lines} />
+                  <Stat label="LEVEL" value={level} />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                </>
+              )}
+              {mode === "zen" && (
+                <>
+                  <Stat label="LINES" value={lines} />
+                  <Stat label="TIME" value={fmtTime(elapsed)} />
+                  <Stat label="LEVEL" value={level} />
+                </>
+              )}
               <Stat label="SPEED" value={`${speed}/s`} />
               <Stat label="COMBO" value={combo > 1 ? `x${combo}` : "—"} highlight={combo > 1} />
             </SidePanel>
+
             <SidePanel title="CONTROLS">
               <div className="text-[10px] leading-relaxed text-white/60 space-y-1">
                 <div>← →  Move</div>
@@ -545,7 +648,7 @@ function NeonButton({ children, onClick, variant = "solid" }: { children: React.
   );
 }
 
-function Menu({ onStart, onLeaderboard, onSettings }: { onStart: () => void; onLeaderboard: () => void; onSettings: () => void }) {
+function Menu({ onPlay, onLeaderboard, onSettings }: { onPlay: () => void; onLeaderboard: () => void; onSettings: () => void }) {
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
       <h1 className="text-7xl md:text-9xl font-extrabold tracking-[0.15em] mb-2"
@@ -559,8 +662,7 @@ function Menu({ onStart, onLeaderboard, onSettings }: { onStart: () => void; onL
       </h1>
       <div className="text-purple-300/70 tracking-[0.3em] mb-12 text-sm">NEON · MODERN</div>
       <div className="flex flex-col gap-3 w-64">
-        <NeonButton onClick={onStart}>SOLO MODE</NeonButton>
-        <NeonButton onClick={() => alert("1v1 multiplayer coming next phase")} variant="ghost">1V1 MULTIPLAYER</NeonButton>
+        <NeonButton onClick={onPlay}>PLAY</NeonButton>
         <NeonButton onClick={onLeaderboard} variant="ghost">LEADERBOARD</NeonButton>
         <NeonButton onClick={onSettings} variant="ghost">SETTINGS</NeonButton>
       </div>
@@ -569,19 +671,79 @@ function Menu({ onStart, onLeaderboard, onSettings }: { onStart: () => void; onL
   );
 }
 
-function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }) {
+function ModeSelect({ onPick, onBack }: { onPick: (m: GameMode) => void; onBack: () => void }) {
+  const modes: GameMode[] = ["marathon", "sprint", "ultra", "zen"];
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
-      <h2 className="text-5xl font-extrabold tracking-widest mb-8 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>LEADERBOARD</h2>
+      <h2 className="text-5xl font-extrabold tracking-widest mb-2 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>SELECT MODE</h2>
+      <div className="text-purple-300/60 tracking-[0.3em] mb-10 text-xs">CHOOSE YOUR CHALLENGE</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl mb-8">
+        {modes.map(m => {
+          const meta = MODE_META[m];
+          return (
+            <button
+              key={m}
+              onClick={() => onPick(m)}
+              onMouseEnter={() => sfx.hover()}
+              className="text-left rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-5 transition-all hover:scale-[1.02] hover:bg-black/60 hover:border-white/30 group"
+              style={{ boxShadow: `0 0 30px -10px ${meta.color}66` }}
+            >
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-2xl font-extrabold tracking-widest" style={{ color: meta.color, textShadow: `0 0 20px ${meta.color}88` }}>{meta.name}</div>
+                <div className="text-[10px] tracking-[0.25em] text-white/40">{meta.tag.toUpperCase()}</div>
+              </div>
+              <div className="text-sm text-white/60 leading-relaxed">{meta.desc}</div>
+            </button>
+          );
+        })}
+      </div>
+      <NeonButton onClick={onBack} variant="ghost">BACK</NeonButton>
+    </div>
+  );
+}
+
+function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }) {
+  const [tab, setTab] = useState<GameMode>("marathon");
+  const all = scores.length ? scores : loadScores();
+  const list = rankScores(all, tab);
+  const isTime = tab === "sprint";
+  return (
+    <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
+      <h2 className="text-5xl font-extrabold tracking-widest mb-6 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>LEADERBOARD</h2>
+      <div className="flex gap-2 mb-4">
+        {(["marathon","sprint","ultra","zen"] as GameMode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => { sfx.hover(); setTab(m); }}
+            className={`px-4 py-2 text-xs tracking-[0.2em] rounded-lg border transition-all ${
+              tab === m ? "border-white/40 bg-white/10 text-white" : "border-white/10 text-white/50 hover:text-white/80 hover:border-white/20"
+            }`}
+            style={tab === m ? { boxShadow: `0 0 20px -6px ${MODE_META[m].color}` } : undefined}
+          >
+            {MODE_META[m].name}
+          </button>
+        ))}
+      </div>
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6">
-        {scores.length === 0 ? (
+        {tab === "zen" ? (
+          <div className="text-white/50 text-center py-8">Zen mode has no rankings — just play. ✿</div>
+        ) : list.length === 0 ? (
           <div className="text-white/50 text-center py-8">No scores yet. Go play!</div>
-        ) : scores.map((s, i) => (
+        ) : list.map((s, i) => (
           <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
             <span className="text-purple-300 w-8">#{i+1}</span>
             <span className="flex-1 text-white">{s.name}</span>
-            <span className="text-white/60 text-sm w-16 text-right">L{s.level}</span>
-            <span className="text-pink-400 font-bold w-24 text-right">{s.score.toLocaleString()}</span>
+            {isTime ? (
+              <>
+                <span className="text-white/60 text-sm w-16 text-right">{s.lines}L</span>
+                <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.timeMs)}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-white/60 text-sm w-16 text-right">L{s.level}</span>
+                <span className="text-pink-400 font-bold w-24 text-right">{s.score.toLocaleString()}</span>
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -589,6 +751,7 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
     </div>
   );
 }
+
 
 function Settings({ onBack }: { onBack: () => void }) {
   return (
