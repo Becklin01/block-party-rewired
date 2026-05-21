@@ -406,10 +406,11 @@ export default function Tetris() {
   // Input
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (screen === "menu") {
-        if (e.key === "Enter") startGame();
+      if (screen === "menu" || screen === "modes") {
+        if (e.key === "Enter") setScreen("modes");
         return;
       }
+
       if (e.key === "Escape") {
         if (screen === "playing") setScreen("paused");
         else if (screen === "paused") setScreen("playing");
