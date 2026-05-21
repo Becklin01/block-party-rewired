@@ -495,15 +495,23 @@ export default function Tetris() {
             {screen === "paused" && <Overlay title="PAUSED" subtitle="Press ESC to resume" />}
             {screen === "over" && (
               <Overlay
-                title="GAME OVER"
-                subtitle={`Score ${score} · Lines ${lines}`}
+                title={mode === "sprint" && lines >= SPRINT_GOAL ? "FINISHED!" : mode === "ultra" ? "TIME UP" : "GAME OVER"}
+                subtitle={
+                  mode === "sprint"
+                    ? `${lines} lines in ${fmtTime(finalTime)}`
+                    : mode === "ultra"
+                    ? `Score ${score.toLocaleString()} · ${lines} lines`
+                    : `Score ${score.toLocaleString()} · ${lines} lines · ${fmtTime(finalTime)}`
+                }
                 actions={
                   <>
-                    <NeonButton onClick={startGame}>Retry</NeonButton>
+                    <NeonButton onClick={() => startGame(mode)}>Retry</NeonButton>
+                    <NeonButton onClick={() => setScreen("modes")} variant="ghost">Modes</NeonButton>
                     <NeonButton onClick={() => setScreen("menu")} variant="ghost">Menu</NeonButton>
                   </>
                 }
               />
+
             )}
           </div>
 
