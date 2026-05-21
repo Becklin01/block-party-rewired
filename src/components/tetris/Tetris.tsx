@@ -390,12 +390,25 @@ export default function Tetris() {
             transition: slowMo ? "filter 120ms" : undefined,
           }}
         >
-          {/* Left panel: Hold + Stats */}
-          <SidePanel title="HOLD">
-            <div className="h-20 flex items-center justify-center">
-              <MiniPiece type={hold} />
-            </div>
-          </SidePanel>
+          {/* Left panel: Hold + Abilities */}
+          <div className="flex flex-col gap-3 w-[180px]">
+            <SidePanel title="HOLD">
+              <div className="h-20 flex items-center justify-center">
+                <MiniPiece type={hold} />
+              </div>
+            </SidePanel>
+            <SidePanel title="ENERGY">
+              <EnergyBar value={energy} frozen={frozen} freezeUntil={freezeUntil} />
+            </SidePanel>
+            <SidePanel title="ABILITIES">
+              <div className="flex flex-col gap-2">
+                {(["bomb","freeze","drill"] as Ability[]).map(a => (
+                  <AbilityButton key={a} ability={a} energy={energy} onUse={() => useAbility(a)} />
+                ))}
+              </div>
+            </SidePanel>
+          </div>
+
 
           <div className="relative">
             <BoardView board={board} piece={piece} flashRows={flashRows} />
