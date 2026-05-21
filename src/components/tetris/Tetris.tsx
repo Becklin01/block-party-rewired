@@ -74,7 +74,12 @@ export default function Tetris() {
   const [energy, setEnergy] = useState(0);
   const [frozen, setFrozen] = useState(false);
   const [freezeUntil, setFreezeUntil] = useState(0);
+  const [mode, setMode] = useState<GameMode>("marathon");
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [finalTime, setFinalTime] = useState(0);
   const [, setNow] = useState(0);
+
 
   const level = levelForLines(lines);
   const gravity = gravityMs(level) * (slowMo ? 2.5 : 1);
