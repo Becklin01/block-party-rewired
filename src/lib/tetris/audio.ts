@@ -37,4 +37,20 @@ export const sfx = {
     setTimeout(() => beep(110, 0.3, "sawtooth", 0.06), 280);
   },
   hover: () => beep(660, 0.02, "sine", 0.02),
+  bomb: () => {
+    beep(80, 0.18, "sawtooth", 0.09);
+    setTimeout(() => beep(55, 0.25, "sawtooth", 0.08), 50);
+    setTimeout(() => beep(180, 0.12, "square", 0.05), 30);
+  },
+  freeze: () => {
+    beep(880, 0.08, "sine", 0.05);
+    setTimeout(() => beep(1320, 0.1, "sine", 0.05), 60);
+    setTimeout(() => beep(1760, 0.18, "triangle", 0.04), 130);
+  },
+  drill: () => {
+    for (let i = 0; i < 5; i++) setTimeout(() => beep(160 + i * 30, 0.05, "square", 0.05), i * 35);
+  },
+  noEnergy: () => beep(140, 0.08, "square", 0.04),
+  charge: () => beep(880, 0.04, "triangle", 0.04),
 };
+

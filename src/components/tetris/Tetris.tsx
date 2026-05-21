@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyBoard, newBag, spawnPiece, tryMove, tryRotate, collides, lockPiece, clearLines,
-  ghostPosition, gravityMs, levelForLines, LINE_SCORES, COLORS, TYPE_ID,
+  ghostPosition, gravityMs, levelForLines, LINE_SCORES, COLORS, TYPE_ID, ROWS, COLS,
   type Board, type Piece, type PieceType,
 } from "@/lib/tetris/engine";
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
 import { sfx } from "@/lib/tetris/audio";
+
+type Ability = "bomb" | "freeze" | "drill";
+const ABILITY_COST: Record<Ability, number> = { bomb: 50, freeze: 40, drill: 60 };
+const ABILITY_META: Record<Ability, { name: string; key: string; color: string; glyph: string; desc: string }> = {
+  bomb:   { name: "BOMB",   key: "1", color: "#f87171", glyph: "✸", desc: "Clear 3×3 around piece" },
+  freeze: { name: "FREEZE", key: "2", color: "#22d3ee", glyph: "❄", desc: "Stop gravity 5s" },
+  drill:  { name: "DRILL",  key: "3", color: "#fb923c", glyph: "▼", desc: "Clear column below" },
+};
+
 
 type Screen = "menu" | "playing" | "paused" | "over" | "leaderboard" | "settings";
 
@@ -37,13 +46,19 @@ export default function Tetris() {
   const [particles, setParticles] = useState<Particle[]>([]);
   const [floatTexts, setFloatTexts] = useState<{ id: number; text: string; x: number; y: number }[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [energy, setEnergy] = useState(0);
+  const [frozen, setFrozen] = useState(false);
+  const [freezeUntil, setFreezeUntil] = useState(0);
+  const [, setNow] = useState(0);
 
   const level = levelForLines(lines);
   const gravity = gravityMs(level) * (slowMo ? 2.5 : 1);
 
   const boardRef = useRef(board);
   const pieceRef = useRef(piece);
-  boardRef.current = board; pieceRef.current = piece;
+  const energyRef = useRef(energy);
+  boardRef.current = board; pieceRef.current = piece; energyRef.current = energy;
+
 
   useEffect(() => { setScores(loadScores()); }, []);
 
@@ -68,7 +83,9 @@ export default function Tetris() {
     setScore(0); setLines(0); setCombo(0);
     setFlashRows([]); setShake(0); setSlowMo(false);
     setParticles([]); setFloatTexts([]);
+    setEnergy(0); setFrozen(false); setFreezeUntil(0);
     setScreen("playing");
+
   }, [drawNext]);
 
   const spawnNext = useCallback((curBag: PieceType[], curNext: PieceType[], curBoard: Board) => {
@@ -135,7 +152,9 @@ export default function Tetris() {
       setCombo(newCombo);
       setScore(s => s + base + comboBonus);
       setLines(l => l + rows.length);
+      setEnergy(e => Math.min(100, e + rows.length * 12 + (newCombo > 1 ? 4 : 0)));
       if (rows.length >= 3) setShake(rows.length >= 4 ? 18 : 10);
+
       if (rows.length === 4) {
         setSlowMo(true);
         setTimeout(() => setSlowMo(false), 420);
@@ -155,9 +174,9 @@ export default function Tetris() {
     }
   }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText]);
 
-  // Gravity
+  // Gravity (paused while frozen)
   useEffect(() => {
-    if (screen !== "playing" || !piece) return;
+    if (screen !== "playing" || !piece || frozen) return;
     const t = setInterval(() => {
       const p = pieceRef.current; if (!p) return;
       const moved = tryMove(boardRef.current, p, 1, 0);
@@ -165,7 +184,126 @@ export default function Tetris() {
       else handleLock(p);
     }, gravity);
     return () => clearInterval(t);
-  }, [screen, piece, gravity, handleLock]);
+  }, [screen, piece, gravity, handleLock, frozen]);
+
+  // Freeze timer
+  useEffect(() => {
+    if (!frozen) return;
+    const t = setInterval(() => {
+      setNow(n => n + 1);
+      if (Date.now() >= freezeUntil) setFrozen(false);
+    }, 100);
+    return () => clearInterval(t);
+  }, [frozen, freezeUntil]);
+
+  const spendEnergy = useCallback((cost: number) => {
+    if (energyRef.current < cost) { sfx.noEnergy(); return false; }
+    setEnergy(e => Math.max(0, e - cost));
+    return true;
+  }, []);
+
+  // Piece cell offsets for each type/rotation (mirrors engine SHAPES)
+  const PIECE_OFFS: Record<PieceType, number[][][]> = useMemo(() => ({
+    I:[[[0,0],[0,1],[0,2],[0,3]],[[0,2],[1,2],[2,2],[3,2]],[[1,0],[1,1],[1,2],[1,3]],[[0,1],[1,1],[2,1],[3,1]]],
+    O:[[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]],[[0,1],[0,2],[1,1],[1,2]]],
+    T:[[[0,1],[1,0],[1,1],[1,2]],[[0,1],[1,1],[1,2],[2,1]],[[1,0],[1,1],[1,2],[2,1]],[[0,1],[1,0],[1,1],[2,1]]],
+    S:[[[0,1],[0,2],[1,0],[1,1]],[[0,1],[1,1],[1,2],[2,2]],[[1,1],[1,2],[2,0],[2,1]],[[0,0],[1,0],[1,1],[2,1]]],
+    Z:[[[0,0],[0,1],[1,1],[1,2]],[[0,2],[1,1],[1,2],[2,1]],[[1,0],[1,1],[2,1],[2,2]],[[0,1],[1,0],[1,1],[2,0]]],
+    J:[[[0,0],[1,0],[1,1],[1,2]],[[0,1],[0,2],[1,1],[2,1]],[[1,0],[1,1],[1,2],[2,2]],[[0,1],[1,1],[2,0],[2,1]]],
+    L:[[[0,2],[1,0],[1,1],[1,2]],[[0,1],[1,1],[2,1],[2,2]],[[1,0],[1,1],[1,2],[2,0]],[[0,0],[0,1],[1,1],[2,1]]],
+  }), []);
+
+  const useBomb = useCallback(() => {
+    const p = pieceRef.current; if (!p) return;
+    if (!spendEnergy(ABILITY_COST.bomb)) return;
+    sfx.bomb();
+    // 3x3 around piece bbox center
+    const offs = PIECE_OFFS[p.type][p.rot];
+    let rSum = 0, cSum = 0;
+    for (const [r, c] of offs) { rSum += r; cSum += c; }
+    const cr = p.r + Math.round(rSum / offs.length);
+    const cc = p.c + Math.round(cSum / offs.length);
+    const nb = boardRef.current.map(row => [...row]);
+    const cleared: [number, number][] = [];
+    for (let r = cr - 1; r <= cr + 1; r++) {
+      for (let c = cc - 1; c <= cc + 1; c++) {
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS && nb[r][c] !== 0) {
+          cleared.push([r, c]);
+          nb[r][c] = 0;
+        }
+      }
+    }
+    const cellSize = 28;
+    const ps: Particle[] = [];
+    let id = Date.now();
+    for (const [r, c] of cleared) {
+      for (let k = 0; k < 6; k++) {
+        ps.push({
+          id: id++,
+          x: 8 + c * (cellSize + 2) + cellSize / 2,
+          y: 8 + r * (cellSize + 2) + cellSize / 2,
+          vx: (Math.random() - 0.5) * 420,
+          vy: (Math.random() - 1) * 320,
+          life: 1, color: "#f87171", size: 2 + Math.random() * 3,
+        });
+      }
+    }
+    setParticles(prev => [...prev, ...ps]);
+    setShake(s => Math.max(s, 14));
+    setBoard(nb);
+    addFloatText("BOOM!");
+  }, [spendEnergy, addFloatText, PIECE_OFFS]);
+
+  const useFreeze = useCallback(() => {
+    if (!spendEnergy(ABILITY_COST.freeze)) return;
+    sfx.freeze();
+    setFrozen(true);
+    setFreezeUntil(Date.now() + 5000);
+    addFloatText("FREEZE");
+  }, [spendEnergy, addFloatText]);
+
+  const useDrill = useCallback(() => {
+    const p = pieceRef.current; if (!p) return;
+    if (!spendEnergy(ABILITY_COST.drill)) return;
+    sfx.drill();
+    const cols = new Set<number>();
+    for (const [, c] of PIECE_OFFS[p.type][p.rot]) cols.add(p.c + c);
+    const nb = boardRef.current.map(row => [...row]);
+    const cleared: [number, number][] = [];
+    for (const c of cols) {
+      for (let r = 0; r < ROWS; r++) {
+        if (c >= 0 && c < COLS && nb[r][c] !== 0) {
+          cleared.push([r, c]);
+          nb[r][c] = 0;
+        }
+      }
+    }
+    const cellSize = 28;
+    const ps: Particle[] = [];
+    let id = Date.now();
+    for (const [r, c] of cleared) {
+      for (let k = 0; k < 4; k++) {
+        ps.push({
+          id: id++,
+          x: 8 + c * (cellSize + 2) + cellSize / 2,
+          y: 8 + r * (cellSize + 2) + cellSize / 2,
+          vx: (Math.random() - 0.5) * 200,
+          vy: (Math.random() - 2) * 280,
+          life: 1, color: "#fb923c", size: 2 + Math.random() * 3,
+        });
+      }
+    }
+    setParticles(prev => [...prev, ...ps]);
+    setShake(s => Math.max(s, 10));
+    setBoard(nb);
+    addFloatText("DRILL!");
+  }, [spendEnergy, addFloatText, PIECE_OFFS]);
+
+  const useAbility = useCallback((a: Ability) => {
+    if (a === "bomb") useBomb();
+    else if (a === "freeze") useFreeze();
+    else useDrill();
+  }, [useBomb, useFreeze, useDrill]);
 
   // Screen shake decay
   useEffect(() => {
@@ -221,10 +359,14 @@ export default function Tetris() {
       else if (e.key === "z" || e.key === "Z") { const n = tryRotate(boardRef.current, p, -1); if (n) { setPiece(n); sfx.rotate(); } }
       else if (e.key === " ") { e.preventDefault(); doHardDrop(); }
       else if (e.key === "c" || e.key === "C" || e.key === "Shift") { doHold(); }
+      else if (e.key === "1") { useAbility("bomb"); }
+      else if (e.key === "2") { useAbility("freeze"); }
+      else if (e.key === "3") { useAbility("drill"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [screen, startGame, doHardDrop, doHold]);
+  }, [screen, startGame, doHardDrop, doHold, useAbility]);
+
 
   const speed = Math.round(1000 / gravity * 10) / 10;
 
@@ -248,12 +390,25 @@ export default function Tetris() {
             transition: slowMo ? "filter 120ms" : undefined,
           }}
         >
-          {/* Left panel: Hold + Stats */}
-          <SidePanel title="HOLD">
-            <div className="h-20 flex items-center justify-center">
-              <MiniPiece type={hold} />
-            </div>
-          </SidePanel>
+          {/* Left panel: Hold + Abilities */}
+          <div className="flex flex-col gap-3 w-[180px]">
+            <SidePanel title="HOLD">
+              <div className="h-20 flex items-center justify-center">
+                <MiniPiece type={hold} />
+              </div>
+            </SidePanel>
+            <SidePanel title="ENERGY">
+              <EnergyBar value={energy} frozen={frozen} freezeUntil={freezeUntil} />
+            </SidePanel>
+            <SidePanel title="ABILITIES">
+              <div className="flex flex-col gap-2">
+                {(["bomb","freeze","drill"] as Ability[]).map(a => (
+                  <AbilityButton key={a} ability={a} energy={energy} onUse={() => useAbility(a)} />
+                ))}
+              </div>
+            </SidePanel>
+          </div>
+
 
           <div className="relative">
             <BoardView board={board} piece={piece} flashRows={flashRows} />
@@ -305,9 +460,11 @@ export default function Tetris() {
                 <div>Z  Rotate ←</div>
                 <div>Space  Hard drop</div>
                 <div>C / Shift  Hold</div>
+                <div>1 2 3  Abilities</div>
                 <div>Esc  Pause</div>
               </div>
             </SidePanel>
+
           </div>
         </div>
       )}
@@ -440,10 +597,69 @@ function Settings({ onBack }: { onBack: () => void }) {
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6 text-white/70 text-sm space-y-3">
         <div>Audio · synthesized SFX (always on)</div>
         <div>Controls · keyboard (rebinding in next phase)</div>
-        <div>Power-ups · coming in phase 3</div>
+        <div>Power-ups · Bomb / Freeze / Drill (keys 1·2·3)</div>
         <div>Multiplayer · coming in phase 4</div>
       </div>
       <NeonButton onClick={onBack} variant="ghost">BACK</NeonButton>
     </div>
   );
 }
+
+function EnergyBar({ value, frozen, freezeUntil }: { value: number; frozen: boolean; freezeUntil: number }) {
+  const remain = frozen ? Math.max(0, Math.ceil((freezeUntil - Date.now()) / 1000)) : 0;
+  return (
+    <div>
+      <div className="relative h-3 rounded-full bg-white/5 overflow-hidden border border-white/10">
+        <div
+          className="absolute inset-y-0 left-0 transition-all duration-200"
+          style={{
+            width: `${value}%`,
+            background: "linear-gradient(90deg, #a855f7, #ec4899, #f59e0b)",
+            boxShadow: "0 0 12px rgba(236,72,153,0.6)",
+          }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] mt-1 text-white/50 tracking-widest">
+        <span>{Math.floor(value)}%</span>
+        {frozen && <span className="text-cyan-300 [text-shadow:_0_0_8px_#22d3ee]">FROZEN {remain}s</span>}
+      </div>
+    </div>
+  );
+}
+
+function AbilityButton({ ability, energy, onUse }: { ability: Ability; energy: number; onUse: () => void }) {
+  const meta = ABILITY_META[ability];
+  const cost = ABILITY_COST[ability];
+  const ready = energy >= cost;
+  return (
+    <button
+      onClick={onUse}
+      onMouseEnter={() => sfx.hover()}
+      disabled={!ready}
+      className={`relative w-full rounded-lg border px-2 py-1.5 text-left transition-all ${
+        ready
+          ? "border-white/20 bg-white/5 hover:bg-white/10 hover:scale-[1.02] cursor-pointer"
+          : "border-white/5 bg-white/[0.02] opacity-50 cursor-not-allowed"
+      }`}
+      style={ready ? { boxShadow: `0 0 14px -4px ${meta.color}88` } : undefined}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className="text-lg leading-none w-6 h-6 flex items-center justify-center rounded"
+          style={{ color: meta.color, textShadow: ready ? `0 0 10px ${meta.color}` : undefined }}
+        >
+          {meta.glyph}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-bold tracking-widest text-white">{meta.name}</div>
+          <div className="text-[9px] text-white/50 leading-tight truncate">{meta.desc}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-white/40">[{meta.key}]</div>
+          <div className="text-[10px] font-bold" style={{ color: ready ? meta.color : "#888" }}>{cost}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
