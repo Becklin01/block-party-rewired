@@ -359,10 +359,14 @@ export default function Tetris() {
       else if (e.key === "z" || e.key === "Z") { const n = tryRotate(boardRef.current, p, -1); if (n) { setPiece(n); sfx.rotate(); } }
       else if (e.key === " ") { e.preventDefault(); doHardDrop(); }
       else if (e.key === "c" || e.key === "C" || e.key === "Shift") { doHold(); }
+      else if (e.key === "1") { useAbility("bomb"); }
+      else if (e.key === "2") { useAbility("freeze"); }
+      else if (e.key === "3") { useAbility("drill"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [screen, startGame, doHardDrop, doHold]);
+  }, [screen, startGame, doHardDrop, doHold, useAbility]);
+
 
   const speed = Math.round(1000 / gravity * 10) / 10;
 
