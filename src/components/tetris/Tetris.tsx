@@ -83,7 +83,9 @@ export default function Tetris() {
     setScore(0); setLines(0); setCombo(0);
     setFlashRows([]); setShake(0); setSlowMo(false);
     setParticles([]); setFloatTexts([]);
+    setEnergy(0); setFrozen(false); setFreezeUntil(0);
     setScreen("playing");
+
   }, [drawNext]);
 
   const spawnNext = useCallback((curBag: PieceType[], curNext: PieceType[], curBoard: Board) => {
