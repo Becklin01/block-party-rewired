@@ -17,17 +17,42 @@ const ABILITY_META: Record<Ability, { name: string; key: string; color: string; 
 };
 
 
-type Screen = "menu" | "playing" | "paused" | "over" | "leaderboard" | "settings";
+type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings";
 
-interface Score { name: string; score: number; lines: number; level: number; date: number; }
+export type GameMode = "marathon" | "sprint" | "ultra" | "zen";
+const MODE_META: Record<GameMode, { name: string; tag: string; desc: string; color: string }> = {
+  marathon: { name: "MARATHON", tag: "endless",  desc: "Survive as long as you can — speed ramps up with level.",     color: "#a855f7" },
+  sprint:   { name: "SPRINT",   tag: "40 lines", desc: "Clear 40 lines as fast as possible. Lowest time wins.",       color: "#22d3ee" },
+  ultra:    { name: "ULTRA",    tag: "2 min",    desc: "Score as much as possible in 2 minutes.",                     color: "#f59e0b" },
+  zen:      { name: "ZEN",      tag: "no fail",  desc: "Relaxed mode — no top-out, no timer. Just play.",             color: "#4ade80" },
+};
+const SPRINT_GOAL = 40;
+const ULTRA_DURATION_MS = 2 * 60 * 1000;
 
-const STORAGE_KEY = "tetris.scores.v1";
+interface Score { name: string; mode: GameMode; score: number; lines: number; level: number; timeMs: number; date: number; }
+
+const STORAGE_KEY = "tetris.scores.v2";
 
 function loadScores(): Score[] {
   if (typeof window === "undefined") return [];
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
 }
 function saveScores(s: Score[]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+function fmtTime(ms: number) {
+  if (ms < 0) ms = 0;
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const cs = Math.floor((ms % 1000) / 10);
+  return `${m}:${s.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
+}
+
+function rankScores(all: Score[], mode: GameMode): Score[] {
+  const filtered = all.filter(s => s.mode === mode);
+  if (mode === "sprint") return filtered.sort((a, b) => a.timeMs - b.timeMs).slice(0, 10);
+  return filtered.sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
 
 export default function Tetris() {
   const [screen, setScreen] = useState<Screen>("menu");
