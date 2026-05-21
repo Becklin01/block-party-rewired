@@ -225,7 +225,19 @@ export default function Tetris() {
       setBoard(locked);
       spawnNext(bag, next, locked);
     }
-  }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText]);
+  }, [combo, level, bag, next, spawnNext, spawnParticles, addFloatText, mode, finishGame]);
+
+  // Game timer (ticks every 100ms while playing)
+  useEffect(() => {
+    if (screen !== "playing") return;
+    const t = setInterval(() => {
+      const e = Date.now() - startedAt;
+      setElapsed(e);
+      if (mode === "ultra" && e >= ULTRA_DURATION_MS) finishGame("timeup");
+    }, 100);
+    return () => clearInterval(t);
+  }, [screen, startedAt, mode, finishGame]);
+
 
   // Gravity (paused while frozen)
   useEffect(() => {
