@@ -197,9 +197,16 @@ export default function Tetris() {
       const comboBonus = newCombo > 1 ? 50 * (newCombo - 1) * level : 0;
       setCombo(newCombo);
       setScore(s => s + base + comboBonus);
-      setLines(l => l + rows.length);
+      setLines(l => {
+        const nl = l + rows.length;
+        if (mode === "sprint" && l < SPRINT_GOAL && nl >= SPRINT_GOAL) {
+          setTimeout(() => finishGame("complete"), 250);
+        }
+        return nl;
+      });
       setEnergy(e => Math.min(100, e + rows.length * 12 + (newCombo > 1 ? 4 : 0)));
       if (rows.length >= 3) setShake(rows.length >= 4 ? 18 : 10);
+
 
       if (rows.length === 4) {
         setSlowMo(true);
