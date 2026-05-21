@@ -597,7 +597,7 @@ function Settings({ onBack }: { onBack: () => void }) {
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6 text-white/70 text-sm space-y-3">
         <div>Audio · synthesized SFX (always on)</div>
         <div>Controls · keyboard (rebinding in next phase)</div>
-        <div>Power-ups · coming in phase 3</div>
+        <div>Power-ups · Bomb / Freeze / Drill (keys 1·2·3)</div>
         <div>Multiplayer · coming in phase 4</div>
       </div>
       <NeonButton onClick={onBack} variant="ghost">BACK</NeonButton>
