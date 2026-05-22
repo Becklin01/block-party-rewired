@@ -18,7 +18,7 @@ const ABILITY_META: Record<Ability, { name: string; key: string; color: string; 
 };
 
 
-type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings";
+type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings" | "multiplayer";
 
 export type GameMode = "marathon" | "sprint" | "ultra" | "zen";
 const MODE_META: Record<GameMode, { name: string; tag: string; desc: string; color: string }> = {
