@@ -174,3 +174,26 @@ export function gravityMs(level: number) {
   // Classic-ish curve, capped.
   return Math.max(60, Math.floor(800 * Math.pow(0.85, level - 1)));
 }
+
+// Stateful seeded bag generator — returns next type on each call.
+export function createBagStream(seed: number) {
+  const rand = mulberry32(seed);
+  let bag: PieceType[] = [];
+  return () => {
+    if (bag.length === 0) bag = newBag(rand);
+    return bag.shift()!;
+  };
+}
+
+// Push N garbage rows up from the bottom; each row has one random hole.
+export function pushGarbage(board: Board, count: number, rand: () => number = Math.random): Board {
+  if (count <= 0) return board;
+  const rows: Cell[][] = [];
+  for (let i = 0; i < count; i++) {
+    const hole = Math.floor(rand() * COLS);
+    const row: Cell[] = Array(COLS).fill(8);
+    row[hole] = 0;
+    rows.push(row);
+  }
+  return board.slice(count).concat(rows).slice(-ROWS);
+}
