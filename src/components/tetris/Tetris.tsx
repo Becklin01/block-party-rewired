@@ -7,6 +7,7 @@ import {
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
 import { sfx } from "@/lib/tetris/audio";
+import Multiplayer from "@/components/tetris/Multiplayer";
 
 type Ability = "bomb" | "freeze" | "drill";
 const ABILITY_COST: Record<Ability, number> = { bomb: 50, freeze: 40, drill: 60 };
