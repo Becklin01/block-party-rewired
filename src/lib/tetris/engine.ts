@@ -81,10 +81,22 @@ export function emptyBoard(): Board {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 }
 
-export function newBag(): PieceType[] {
+// Mulberry32 — deterministic PRNG so both players share piece order.
+export function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function newBag(rand: () => number = Math.random): PieceType[] {
   const bag = [...ALL_TYPES];
   for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rand() * (i + 1));
     [bag[i], bag[j]] = [bag[j], bag[i]];
   }
   return bag;
@@ -161,4 +173,27 @@ export function levelForLines(totalLines: number) {
 export function gravityMs(level: number) {
   // Classic-ish curve, capped.
   return Math.max(60, Math.floor(800 * Math.pow(0.85, level - 1)));
+}
+
+// Stateful seeded bag generator — returns next type on each call.
+export function createBagStream(seed: number) {
+  const rand = mulberry32(seed);
+  let bag: PieceType[] = [];
+  return () => {
+    if (bag.length === 0) bag = newBag(rand);
+    return bag.shift()!;
+  };
+}
+
+// Push N garbage rows up from the bottom; each row has one random hole.
+export function pushGarbage(board: Board, count: number, rand: () => number = Math.random): Board {
+  if (count <= 0) return board;
+  const rows: Cell[][] = [];
+  for (let i = 0; i < count; i++) {
+    const hole = Math.floor(rand() * COLS);
+    const row: Cell[] = Array(COLS).fill(8);
+    row[hole] = 0;
+    rows.push(row);
+  }
+  return board.slice(count).concat(rows).slice(-ROWS);
 }

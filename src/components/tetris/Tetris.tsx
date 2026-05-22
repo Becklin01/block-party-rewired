@@ -7,6 +7,7 @@ import {
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
 import { sfx } from "@/lib/tetris/audio";
+import Multiplayer from "@/components/tetris/Multiplayer";
 
 type Ability = "bomb" | "freeze" | "drill";
 const ABILITY_COST: Record<Ability, number> = { bomb: 50, freeze: 40, drill: 60 };
@@ -17,7 +18,7 @@ const ABILITY_META: Record<Ability, { name: string; key: string; color: string; 
 };
 
 
-type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings";
+type Screen = "menu" | "modes" | "playing" | "paused" | "over" | "leaderboard" | "settings" | "multiplayer";
 
 export type GameMode = "marathon" | "sprint" | "ultra" | "zen";
 const MODE_META: Record<GameMode, { name: string; tag: string; desc: string; color: string }> = {
@@ -443,8 +444,9 @@ export default function Tetris() {
       }}>
       <BgGrid />
 
-      {screen === "menu" && <Menu onPlay={() => setScreen("modes")} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
+      {screen === "menu" && <Menu onPlay={() => setScreen("modes")} onMultiplayer={() => setScreen("multiplayer")} onLeaderboard={() => setScreen("leaderboard")} onSettings={() => setScreen("settings")} />}
       {screen === "modes" && <ModeSelect onPick={(m) => startGame(m)} onBack={() => setScreen("menu")} />}
+      {screen === "multiplayer" && <Multiplayer onBack={() => setScreen("menu")} />}
       {screen === "leaderboard" && <Leaderboard scores={scores} onBack={() => setScreen("menu")} />}
       {screen === "settings" && <Settings onBack={() => setScreen("menu")} />}
 
@@ -648,7 +650,7 @@ function NeonButton({ children, onClick, variant = "solid" }: { children: React.
   );
 }
 
-function Menu({ onPlay, onLeaderboard, onSettings }: { onPlay: () => void; onLeaderboard: () => void; onSettings: () => void }) {
+function Menu({ onPlay, onMultiplayer, onLeaderboard, onSettings }: { onPlay: () => void; onMultiplayer: () => void; onLeaderboard: () => void; onSettings: () => void }) {
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
       <h1 className="text-7xl md:text-9xl font-extrabold tracking-[0.15em] mb-2"
@@ -663,6 +665,7 @@ function Menu({ onPlay, onLeaderboard, onSettings }: { onPlay: () => void; onLea
       <div className="text-purple-300/70 tracking-[0.3em] mb-12 text-sm">NEON · MODERN</div>
       <div className="flex flex-col gap-3 w-64">
         <NeonButton onClick={onPlay}>PLAY</NeonButton>
+        <NeonButton onClick={onMultiplayer}>MULTIPLAYER</NeonButton>
         <NeonButton onClick={onLeaderboard} variant="ghost">LEADERBOARD</NeonButton>
         <NeonButton onClick={onSettings} variant="ghost">SETTINGS</NeonButton>
       </div>
