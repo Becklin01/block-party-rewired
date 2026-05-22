@@ -650,7 +650,7 @@ function NeonButton({ children, onClick, variant = "solid" }: { children: React.
   );
 }
 
-function Menu({ onPlay, onLeaderboard, onSettings }: { onPlay: () => void; onLeaderboard: () => void; onSettings: () => void }) {
+function Menu({ onPlay, onMultiplayer, onLeaderboard, onSettings }: { onPlay: () => void; onMultiplayer: () => void; onLeaderboard: () => void; onSettings: () => void }) {
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
       <h1 className="text-7xl md:text-9xl font-extrabold tracking-[0.15em] mb-2"
@@ -665,6 +665,7 @@ function Menu({ onPlay, onLeaderboard, onSettings }: { onPlay: () => void; onLea
       <div className="text-purple-300/70 tracking-[0.3em] mb-12 text-sm">NEON · MODERN</div>
       <div className="flex flex-col gap-3 w-64">
         <NeonButton onClick={onPlay}>PLAY</NeonButton>
+        <NeonButton onClick={onMultiplayer}>MULTIPLAYER</NeonButton>
         <NeonButton onClick={onLeaderboard} variant="ghost">LEADERBOARD</NeonButton>
         <NeonButton onClick={onSettings} variant="ghost">SETTINGS</NeonButton>
       </div>
