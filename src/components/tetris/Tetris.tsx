@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   emptyBoard, newBag, spawnPiece, tryMove, tryRotate, collides, lockPiece, clearLines,
   ghostPosition, gravityMs, levelForLines, LINE_SCORES, COLORS, TYPE_ID, ROWS, COLS,
@@ -8,6 +9,8 @@ import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
 import { sfx } from "@/lib/tetris/audio";
 import Multiplayer from "@/components/tetris/Multiplayer";
+import { useAuth, signOut } from "@/hooks/use-auth";
+import { submitWorldScore, fetchWorldTop, type WorldScoreRow } from "@/lib/leaderboard";
 
 type Ability = "bomb" | "freeze" | "drill";
 const ABILITY_COST: Record<Ability, number> = { bomb: 50, freeze: 40, drill: 60 };
@@ -130,6 +133,8 @@ export default function Tetris() {
     const all = [...loadScores(), s];
     saveScores(all);
     setScores(rankScores(all, mode));
+    // Submit to world leaderboard (only for ranked modes; ignores failures silently)
+    void submitWorldScore({ mode: mode as "marathon" | "sprint" | "ultra", score, lines, level, timeMs: t });
     void reason;
   }, [score, lines, level, mode, startedAt]);
 
