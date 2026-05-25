@@ -37,10 +37,12 @@ export function setPlayerName(name: string) {
   localStorage.setItem(PLAYER_NAME_KEY, name);
 }
 
+export const ROOM_CODE_LENGTH = 5;
+
 export function randomCode() {
   const alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
-  for (let i = 0; i < 4; i++) s += alpha[Math.floor(Math.random() * alpha.length)];
+  for (let i = 0; i < ROOM_CODE_LENGTH; i++) s += alpha[Math.floor(Math.random() * alpha.length)];
   return s;
 }
 

@@ -8,7 +8,7 @@ import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { sfx } from "@/lib/tetris/audio";
 import {
   createRoom, joinRoom, registerPlayer, listPlayers, leaveRoom,
-  openChannel, getPlayerId, getPlayerName, setPlayerName, garbageForLines,
+  openChannel, getPlayerId, getPlayerName, setPlayerName, garbageForLines, ROOM_CODE_LENGTH,
   type MpChannel, type MpMessage,
 } from "@/lib/tetris/multiplayer";
 
@@ -72,7 +72,7 @@ export default function Multiplayer({ onBack }: Props) {
 
   const doJoin = async () => {
     const c = joinInput.trim().toUpperCase();
-    if (c.length !== 4) { setError("Enter a 4-character code."); return; }
+    if (c.length !== ROOM_CODE_LENGTH) { setError(`Enter a ${ROOM_CODE_LENGTH}-character code.`); return; }
     setBusy(true); setError(null);
     setPlayerName(name);
     const res = await joinRoom(c);
@@ -298,13 +298,14 @@ export default function Multiplayer({ onBack }: Props) {
       <div className="flex gap-2 w-64">
         <input
           value={joinInput}
-          onChange={(e) => setJoinInput(e.target.value.toUpperCase().slice(0, 4))}
-          placeholder="CODE"
+          onChange={(e) => setJoinInput(e.target.value.toUpperCase().slice(0, ROOM_CODE_LENGTH))}
+          placeholder={"CODE".padEnd(ROOM_CODE_LENGTH, " ")}
+          maxLength={ROOM_CODE_LENGTH}
           className="flex-1 bg-black/50 border border-white/15 rounded-lg px-4 py-3 text-center tracking-[0.4em] text-white focus:outline-none focus:border-cyan-400 font-mono"
         />
         <button
           onClick={doJoin}
-          disabled={busy || joinInput.length !== 4 || !name.trim()}
+          disabled={busy || joinInput.length !== ROOM_CODE_LENGTH || !name.trim()}
           className="px-4 py-3 rounded-lg border border-cyan-400/40 text-cyan-300 hover:bg-cyan-400/10 transition disabled:opacity-40 text-sm tracking-widest font-bold"
         >JOIN</button>
       </div>
