@@ -656,8 +656,21 @@ function NeonButton({ children, onClick, variant = "solid" }: { children: React.
 }
 
 function Menu({ onPlay, onMultiplayer, onLeaderboard, onSettings }: { onPlay: () => void; onMultiplayer: () => void; onLeaderboard: () => void; onSettings: () => void }) {
+  const { user, displayName, loading } = useAuth();
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
+      <div className="absolute top-6 right-6 flex items-center gap-3 text-xs tracking-widest">
+        {loading ? null : user ? (
+          <>
+            <span className="text-purple-300/80">{displayName ?? "Player"}</span>
+            <button onClick={() => void signOut()} className="text-white/50 hover:text-white">SIGN OUT</button>
+          </>
+        ) : (
+          <Link to="/auth" className="px-3 py-1.5 rounded-md border border-purple-400/40 text-purple-200 hover:bg-purple-400/10">
+            SIGN IN
+          </Link>
+        )}
+      </div>
       <h1 className="text-7xl md:text-9xl font-extrabold tracking-[0.15em] mb-2"
         style={{
           background: "linear-gradient(180deg, #fff, #a855f7)",
@@ -712,13 +725,37 @@ function ModeSelect({ onPick, onBack }: { onPick: (m: GameMode) => void; onBack:
 
 function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }) {
   const [tab, setTab] = useState<GameMode>("marathon");
+  const [scope, setScope] = useState<"world" | "local">("world");
+  const [world, setWorld] = useState<WorldScoreRow[]>([]);
+  const [loadingWorld, setLoadingWorld] = useState(false);
   const all = scores.length ? scores : loadScores();
-  const list = rankScores(all, tab);
+  const localList = rankScores(all, tab);
   const isTime = tab === "sprint";
+
+  useEffect(() => {
+    if (scope !== "world" || tab === "zen") return;
+    setLoadingWorld(true);
+    fetchWorldTop(tab as "marathon" | "sprint" | "ultra", 25)
+      .then(setWorld)
+      .finally(() => setLoadingWorld(false));
+  }, [scope, tab]);
+
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
-      <h2 className="text-5xl font-extrabold tracking-widest mb-6 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>LEADERBOARD</h2>
-      <div className="flex gap-2 mb-4">
+      <h2 className="text-5xl font-extrabold tracking-widest mb-4 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>LEADERBOARD</h2>
+
+      <div className="flex gap-1 mb-4 p-1 rounded-lg border border-white/10 bg-black/40">
+        {(["world", "local"] as const).map(s => (
+          <button key={s} onClick={() => { sfx.hover(); setScope(s); }}
+            className={`px-4 py-1.5 text-[11px] tracking-[0.25em] rounded-md transition ${
+              scope === s ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white" : "text-white/50 hover:text-white"
+            }`}>
+            {s === "world" ? "🌍 WORLD" : "💾 LOCAL"}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mb-4 flex-wrap justify-center">
         {(["marathon","sprint","ultra","zen"] as GameMode[]).map(m => (
           <button
             key={m}
@@ -732,12 +769,34 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
           </button>
         ))}
       </div>
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6 min-h-[200px]">
         {tab === "zen" ? (
           <div className="text-white/50 text-center py-8">Zen mode has no rankings — just play. ✿</div>
-        ) : list.length === 0 ? (
+        ) : scope === "world" ? (
+          loadingWorld ? (
+            <div className="text-white/40 text-center py-8 tracking-widest text-xs">LOADING…</div>
+          ) : world.length === 0 ? (
+            <div className="text-white/50 text-center py-8">No world scores yet. Be the first!</div>
+          ) : world.map((s, i) => (
+            <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              <span className="text-purple-300 w-8">#{i+1}</span>
+              <span className="flex-1 text-white truncate">{s.display_name}</span>
+              {isTime ? (
+                <>
+                  <span className="text-white/60 text-sm w-16 text-right">{s.lines}L</span>
+                  <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.time_ms)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-white/60 text-sm w-16 text-right">L{s.level}</span>
+                  <span className="text-pink-400 font-bold w-24 text-right">{s.score.toLocaleString()}</span>
+                </>
+              )}
+            </div>
+          ))
+        ) : localList.length === 0 ? (
           <div className="text-white/50 text-center py-8">No scores yet. Go play!</div>
-        ) : list.map((s, i) => (
+        ) : localList.map((s, i) => (
           <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
             <span className="text-purple-300 w-8">#{i+1}</span>
             <span className="flex-1 text-white">{s.name}</span>
