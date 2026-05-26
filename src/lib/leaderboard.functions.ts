@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const submitSchema = z.object({
   mode: z.enum(["marathon", "sprint", "ultra"]),
@@ -14,9 +15,15 @@ export const submitWorldScoreFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => submitSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { error } = await supabase.from("world_scores").insert({
-      user_id: userId,
+    // Sanity: max ~1000 points per line cleared (very generous upper bound).
+    if (data.lines > 0 && data.score > data.lines * 1000 + 100_000) {
+      throw new Error("Implausible score for line count");
+    }
+    if (data.mode === "sprint" && data.lines < 40 && data.score > 0) {
+      throw new Error("Sprint requires 40 lines");
+    }
+    const { error } = await supabaseAdmin.from("world_scores").insert({
+      user_id: context.userId,
       mode: data.mode,
       score: data.score,
       lines: data.lines,
