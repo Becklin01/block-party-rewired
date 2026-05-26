@@ -87,11 +87,6 @@ export default function Multiplayer({ onBack }: Props) {
   useEffect(() => {
     if (!code || seed === null || phase !== "lobby") return;
     let cancelled = false;
-    const ch = openChannel(code, (msg) => {
-      handleMessage(msg);
-    }, (count) => setPresence(count));
-    chanRef.current = ch;
-
     const refresh = async () => {
       const list = await listPlayers(code);
       if (!cancelled) {
@@ -100,8 +95,16 @@ export default function Multiplayer({ onBack }: Props) {
         if (opp) setOppName(opp.name);
       }
     };
+    const ch = openChannel(code, (msg) => {
+      handleMessage(msg);
+      if (msg.t === "state" || msg.t === "ping") void refresh();
+    }, (count) => {
+      setPresence(count);
+      if (count >= 2) void refresh();
+    });
+    chanRef.current = ch;
     refresh();
-    const t = setInterval(refresh, 2000);
+    const t = setInterval(refresh, 1500);
     return () => {
       cancelled = true;
       clearInterval(t);
