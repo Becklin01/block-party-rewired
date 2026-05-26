@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { submitWorldScoreFn } from "./leaderboard.functions";
 
 export type WorldMode = "marathon" | "sprint" | "ultra";
 
@@ -22,18 +23,13 @@ export async function submitWorldScore(input: {
   timeMs: number;
 }): Promise<{ ok: boolean; error?: string }> {
   const { data: sessionData } = await supabase.auth.getSession();
-  const user = sessionData.session?.user;
-  if (!user) return { ok: false, error: "not_authenticated" };
-  const { error } = await supabase.from("world_scores").insert({
-    user_id: user.id,
-    mode: input.mode,
-    score: input.score,
-    lines: input.lines,
-    level: input.level,
-    time_ms: input.timeMs,
-  });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  if (!sessionData.session?.user) return { ok: false, error: "not_authenticated" };
+  try {
+    await submitWorldScoreFn({ data: input });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "submit_failed" };
+  }
 }
 
 export async function fetchWorldTop(mode: WorldMode, limit = 25): Promise<WorldScoreRow[]> {
