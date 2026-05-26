@@ -7,7 +7,7 @@ import {
 } from "@/lib/tetris/engine";
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
 import { ParticleLayer, type Particle } from "@/components/tetris/Particles";
-import { sfx } from "@/lib/tetris/audio";
+import { sfx, startMusic, stopMusic, isMusicEnabled, setMusicEnabled } from "@/lib/tetris/audio";
 import Multiplayer from "@/components/tetris/Multiplayer";
 import { useAuth, signOut } from "@/hooks/use-auth";
 import { submitWorldScore, fetchWorldTop, type WorldScoreRow } from "@/lib/leaderboard";
@@ -121,7 +121,13 @@ export default function Tetris() {
     setEnergy(0); setFrozen(false); setFreezeUntil(0);
     setStartedAt(Date.now()); setElapsed(0); setFinalTime(0);
     setScreen("playing");
+    if (isMusicEnabled()) startMusic(0.06);
   }, [drawNext, mode]);
+
+  // Stop music when not actively playing
+  useEffect(() => {
+    if (screen !== "playing") stopMusic();
+  }, [screen]);
 
   const finishGame = useCallback((reason: "topout" | "complete" | "timeup" = "topout") => {
     sfx.over();
@@ -821,14 +827,23 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
 
 
 function Settings({ onBack }: { onBack: () => void }) {
+  const [music, setMusic] = useState(isMusicEnabled());
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
       <h2 className="text-5xl font-extrabold tracking-widest mb-8 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>SETTINGS</h2>
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6 text-white/70 text-sm space-y-3">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-black/40 backdrop-blur p-6 mb-6 text-white/70 text-sm space-y-4">
+        <label className="flex items-center justify-between cursor-pointer">
+          <span>Background music</span>
+          <button
+            onClick={() => { const next = !music; setMusic(next); setMusicEnabled(next); if (!next) stopMusic(); }}
+            className={`relative w-12 h-6 rounded-full transition ${music ? "bg-gradient-to-r from-purple-600 to-pink-600" : "bg-white/10"}`}
+          >
+            <span className={`absolute top-0.5 ${music ? "left-6" : "left-0.5"} w-5 h-5 bg-white rounded-full transition-all`} />
+          </button>
+        </label>
         <div>Audio · synthesized SFX (always on)</div>
-        <div>Controls · keyboard (rebinding in next phase)</div>
+        <div>Controls · keyboard</div>
         <div>Power-ups · Bomb / Freeze / Drill (keys 1·2·3)</div>
-        <div>Multiplayer · coming in phase 4</div>
       </div>
       <NeonButton onClick={onBack} variant="ghost">BACK</NeonButton>
     </div>

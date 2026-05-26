@@ -5,7 +5,7 @@ import {
   type Board, type Piece, type PieceType,
 } from "@/lib/tetris/engine";
 import { BoardView, MiniPiece } from "@/components/tetris/Board";
-import { sfx } from "@/lib/tetris/audio";
+import { sfx, startMusic, stopMusic, isMusicEnabled } from "@/lib/tetris/audio";
 import {
   createRoom, joinRoom, registerPlayer, listPlayers, leaveRoom,
   openChannel, getPlayerId, getPlayerName, setPlayerName, garbageForLines, ROOM_CODE_LENGTH,
@@ -90,9 +90,9 @@ export default function Multiplayer({ onBack }: Props) {
     setBusy(false);
   };
 
-  // Open channel + poll players once code+seed known and lobby
+  // Open channel once we have a room code+seed; keep it open across phases.
   useEffect(() => {
-    if (!code || seed === null || phase !== "lobby") return;
+    if (!code || seed === null) return;
     let cancelled = false;
     const refresh = async () => {
       const list = await listPlayers(code);
@@ -110,8 +110,8 @@ export default function Multiplayer({ onBack }: Props) {
       if (count >= 2) void refresh();
     });
     chanRef.current = ch;
-    refresh();
-    const t = setInterval(refresh, 1500);
+    void refresh();
+    const t = setInterval(() => { if (phaseRef.current === "lobby") void refresh(); }, 1500);
     return () => {
       cancelled = true;
       clearInterval(t);
@@ -119,7 +119,7 @@ export default function Multiplayer({ onBack }: Props) {
       chanRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, seed, phase]);
+  }, [code, seed]);
 
   // ---------- messaging ----------
   const handleMessage = useCallback((msg: MpMessage) => {
@@ -164,7 +164,14 @@ export default function Multiplayer({ onBack }: Props) {
     setScore(0); setLines(0); setPendingGarbage(0); setWinner(null);
     setOppBoard(emptyBoard()); setOppScore(0); setOppLines(0);
     setPhase("playing");
+    if (isMusicEnabled()) startMusic(0.06);
   }, [seed]);
+
+  // Stop music when leaving playing phase
+  useEffect(() => {
+    if (phase !== "playing") stopMusic();
+    return () => { if (phase === "playing") stopMusic(); };
+  }, [phase]);
 
   // Host triggers start when 2 players present
   useEffect(() => {
