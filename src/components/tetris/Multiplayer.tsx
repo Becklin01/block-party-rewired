@@ -9,24 +9,31 @@ import { sfx } from "@/lib/tetris/audio";
 import {
   createRoom, joinRoom, registerPlayer, listPlayers, leaveRoom,
   openChannel, getPlayerId, getPlayerName, setPlayerName, garbageForLines, ROOM_CODE_LENGTH,
+  hydratePlayerId,
   type MpChannel, type MpMessage,
 } from "@/lib/tetris/multiplayer";
+import { useAuth } from "@/hooks/use-auth";
+import { Link } from "@tanstack/react-router";
 
 type Phase = "lobby" | "playing" | "over";
 
 interface Props { onBack: () => void; }
 
 export default function Multiplayer({ onBack }: Props) {
+  const { user, displayName, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [code, setCode] = useState("");
   const [joinInput, setJoinInput] = useState("");
-  const [name, setName] = useState(getPlayerName());
+  const [name, setName] = useState(displayName ?? getPlayerName());
   const [seed, setSeed] = useState<number | null>(null);
   const [players, setPlayers] = useState<{ player_id: string; name: string }[]>([]);
   const [presence, setPresence] = useState(0);
   const [phase, setPhase] = useState<Phase>("lobby");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { void hydratePlayerId(); }, [user?.id]);
+  useEffect(() => { if (displayName) setName(displayName); }, [displayName]);
 
   // game state
   const [board, setBoard] = useState<Board>(emptyBoard);
@@ -317,6 +324,17 @@ export default function Multiplayer({ onBack }: Props) {
   ), [name, joinInput, busy, error]);
 
   if (phase === "lobby" && mode === "choose") {
+    if (!authLoading && !user) {
+      return (
+        <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8 text-center">
+          <h2 className="text-5xl font-extrabold tracking-widest mb-2 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>VERSUS</h2>
+          <div className="text-purple-300/60 tracking-[0.3em] mb-8 text-xs">SIGN IN TO PLAY ONLINE</div>
+          <p className="text-white/60 max-w-md mb-6 text-sm">Online multiplayer requires an account so we can match you with friends and protect rooms from tampering.</p>
+          <Link to="/auth" className="px-6 py-3 rounded-xl font-bold tracking-widest text-sm bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-[0_0_30px_rgba(168,85,247,0.6)] hover:scale-105 transition">SIGN IN</Link>
+          <button onClick={onBack} className="mt-8 text-white/50 text-xs tracking-widest hover:text-white">← BACK</button>
+        </div>
+      );
+    }
     return (
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8">
         <h2 className="text-5xl font-extrabold tracking-widest mb-2 text-white" style={{ textShadow: "0 0 30px #a855f7" }}>VERSUS</h2>

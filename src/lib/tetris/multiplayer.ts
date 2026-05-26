@@ -13,14 +13,23 @@ export type MpMessage =
 const PLAYER_ID_KEY = "tetris.mp.playerId";
 const PLAYER_NAME_KEY = "tetris.mp.playerName";
 
+let _cachedPlayerId: string | null = null;
+
+// Hydrate from current Supabase session. Returns auth.uid() if signed in.
+export async function hydratePlayerId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user?.id ?? null;
+  _cachedPlayerId = uid;
+  if (uid && typeof window !== "undefined") localStorage.setItem(PLAYER_ID_KEY, uid);
+  return uid;
+}
+
 export function getPlayerId(): string {
+  if (_cachedPlayerId) return _cachedPlayerId;
   if (typeof window === "undefined") return "anon";
-  let id = localStorage.getItem(PLAYER_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(PLAYER_ID_KEY, id);
-  }
-  return id;
+  const stored = localStorage.getItem(PLAYER_ID_KEY);
+  if (stored) { _cachedPlayerId = stored; return stored; }
+  return "anon";
 }
 
 export function getPlayerName(): string {
