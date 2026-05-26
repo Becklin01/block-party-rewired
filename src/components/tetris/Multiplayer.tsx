@@ -164,7 +164,14 @@ export default function Multiplayer({ onBack }: Props) {
     setScore(0); setLines(0); setPendingGarbage(0); setWinner(null);
     setOppBoard(emptyBoard()); setOppScore(0); setOppLines(0);
     setPhase("playing");
+    if (isMusicEnabled()) startMusic(0.06);
   }, [seed]);
+
+  // Stop music when leaving playing phase
+  useEffect(() => {
+    if (phase !== "playing") stopMusic();
+    return () => { if (phase === "playing") stopMusic(); };
+  }, [phase]);
 
   // Host triggers start when 2 players present
   useEffect(() => {
