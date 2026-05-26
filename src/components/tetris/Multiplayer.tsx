@@ -9,24 +9,31 @@ import { sfx } from "@/lib/tetris/audio";
 import {
   createRoom, joinRoom, registerPlayer, listPlayers, leaveRoom,
   openChannel, getPlayerId, getPlayerName, setPlayerName, garbageForLines, ROOM_CODE_LENGTH,
+  hydratePlayerId,
   type MpChannel, type MpMessage,
 } from "@/lib/tetris/multiplayer";
+import { useAuth } from "@/hooks/use-auth";
+import { Link } from "@tanstack/react-router";
 
 type Phase = "lobby" | "playing" | "over";
 
 interface Props { onBack: () => void; }
 
 export default function Multiplayer({ onBack }: Props) {
+  const { user, displayName, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [code, setCode] = useState("");
   const [joinInput, setJoinInput] = useState("");
-  const [name, setName] = useState(getPlayerName());
+  const [name, setName] = useState(displayName ?? getPlayerName());
   const [seed, setSeed] = useState<number | null>(null);
   const [players, setPlayers] = useState<{ player_id: string; name: string }[]>([]);
   const [presence, setPresence] = useState(0);
   const [phase, setPhase] = useState<Phase>("lobby");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { void hydratePlayerId(); }, [user?.id]);
+  useEffect(() => { if (displayName) setName(displayName); }, [displayName]);
 
   // game state
   const [board, setBoard] = useState<Board>(emptyBoard);
