@@ -54,3 +54,113 @@ export const sfx = {
   charge: () => beep(880, 0.04, "triangle", 0.04),
 };
 
+// ---------- Background music (procedural Korobeiniki-inspired loop) ----------
+let musicTimer: number | null = null;
+let musicGain: GainNode | null = null;
+let musicStep = 0;
+let musicEnabled = true;
+
+// Melody (Korobeiniki, A minor) — [midi, beats]
+const MELODY: [number, number][] = [
+  [76,2],[71,1],[72,1],[74,2],[72,1],[71,1],
+  [69,2],[69,1],[72,1],[76,2],[74,1],[72,1],
+  [71,3],[72,1],[74,2],[76,2],
+  [72,2],[69,2],[69,2],[0,2],
+  [74,2],[77,1],[81,2],[79,1],[77,1],
+  [76,3],[72,1],[76,2],[74,1],[72,1],
+  [71,2],[71,1],[72,1],[74,2],[76,2],
+  [72,2],[69,2],[69,2],[0,2],
+];
+const BASS: [number, number][] = [
+  [45,2],[52,2],[45,2],[52,2],
+  [44,2],[51,2],[45,2],[52,2],
+  [45,2],[52,2],[45,2],[52,2],
+  [44,2],[51,2],[45,2],[40,2],
+];
+
+function midiToFreq(m: number) { return 440 * Math.pow(2, (m - 69) / 12); }
+
+function playNote(a: AudioContext, freq: number, dur: number, type: OscillatorType, vol: number, dest: AudioNode) {
+  if (freq <= 0) return;
+  const o = a.createOscillator();
+  const g = a.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  const now = a.currentTime;
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(vol, now + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  o.connect(g).connect(dest);
+  o.start(now);
+  o.stop(now + dur + 0.05);
+}
+
+export function startMusic(volume = 0.08) {
+  if (!musicEnabled) return;
+  const a = ac(); if (!a) return;
+  if (musicTimer !== null) return; // already playing
+  // Resume context (browsers require user gesture)
+  if (a.state === "suspended") void a.resume();
+  musicGain = a.createGain();
+  musicGain.gain.value = volume;
+  musicGain.connect(a.destination);
+
+  const bpm = 144;
+  const beat = 60 / bpm; // seconds per beat
+  let melIdx = 0, bassIdx = 0, melT = 0, bassT = 0;
+
+  const tick = () => {
+    if (!musicGain) return;
+    const a2 = ac(); if (!a2) return;
+    // schedule ~0.5s ahead
+    while (melT < 0.5) {
+      const [n, b] = MELODY[melIdx % MELODY.length];
+      const dur = b * beat;
+      setTimeout(() => playNote(a2, midiToFreq(n), Math.min(dur, 0.35), "square", 0.5, musicGain!), melT * 1000);
+      melT += dur;
+      melIdx++;
+    }
+    while (bassT < 0.5) {
+      const [n, b] = BASS[bassIdx % BASS.length];
+      const dur = b * beat;
+      setTimeout(() => playNote(a2, midiToFreq(n), Math.min(dur, 0.4), "triangle", 0.7, musicGain!), bassT * 1000);
+      bassT += dur;
+      bassIdx++;
+    }
+    melT -= 0.25;
+    bassT -= 0.25;
+    musicStep++;
+  };
+  tick();
+  musicTimer = window.setInterval(tick, 250);
+}
+
+export function stopMusic() {
+  if (musicTimer !== null) { clearInterval(musicTimer); musicTimer = null; }
+  if (musicGain) {
+    const a = ac();
+    if (a) {
+      musicGain.gain.cancelScheduledValues(a.currentTime);
+      musicGain.gain.linearRampToValueAtTime(0, a.currentTime + 0.15);
+      const g = musicGain;
+      setTimeout(() => { try { g.disconnect(); } catch { /* */ } }, 200);
+    }
+    musicGain = null;
+  }
+  musicStep = 0;
+}
+
+export function setMusicEnabled(on: boolean) {
+  musicEnabled = on;
+  if (typeof window !== "undefined") localStorage.setItem("tetris.music", on ? "1" : "0");
+  if (!on) stopMusic();
+}
+
+export function isMusicEnabled() {
+  if (typeof window === "undefined") return true;
+  const v = localStorage.getItem("tetris.music");
+  if (v === null) return true;
+  musicEnabled = v === "1";
+  return musicEnabled;
+}
+
