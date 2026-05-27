@@ -747,7 +747,15 @@ function ModeSelect({ onPick, onBack }: { onPick: (m: GameMode) => void; onBack:
   );
 }
 
+function rankBadge(i: number) {
+  if (i === 0) return { icon: "🥇", color: "#facc15", shadow: "0 0 14px #facc15aa" };
+  if (i === 1) return { icon: "🥈", color: "#e5e7eb", shadow: "0 0 12px #e5e7eb88" };
+  if (i === 2) return { icon: "🥉", color: "#fb923c", shadow: "0 0 12px #fb923caa" };
+  return null;
+}
+
 function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState<GameMode>("marathon");
   const [scope, setScope] = useState<"world" | "local">("world");
   const [world, setWorld] = useState<WorldScoreRow[]>([]);
@@ -763,6 +771,9 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
       .then(setWorld)
       .finally(() => setLoadingWorld(false));
   }, [scope, tab]);
+
+  const myRank = user ? world.findIndex(s => s.user_id === user.id) : -1;
+
 
   return (
     <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8" style={{ animation: "fadeIn .4s ease-out" }}>
@@ -801,14 +812,45 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
             <div className="text-white/40 text-center py-8 tracking-widest text-xs">LOADING…</div>
           ) : world.length === 0 ? (
             <div className="text-white/50 text-center py-8">No world scores yet. Be the first!</div>
-          ) : world.map((s, i) => (
-            <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-              <span className="text-purple-300 w-8">#{i+1}</span>
-              <span className="flex-1 text-white truncate">{s.display_name}</span>
+          ) : world.map((s, i) => {
+            const badge = rankBadge(i);
+            const isMe = user && s.user_id === user.id;
+            return (
+              <div key={s.id} className={`flex items-center justify-between py-2 border-b border-white/5 last:border-0 ${isMe ? "bg-purple-500/10 -mx-2 px-2 rounded" : ""}`}>
+                <span className="w-10 text-sm" style={badge ? { color: badge.color, textShadow: badge.shadow } : { color: "#c4b5fd" }}>
+                  {badge ? badge.icon : `#${i+1}`}
+                </span>
+                <span className={`flex-1 truncate ${isMe ? "text-pink-300 font-bold" : "text-white"}`}>
+                  {s.display_name}{isMe ? " (you)" : ""}
+                </span>
+                {isTime ? (
+                  <>
+                    <span className="text-white/60 text-sm w-16 text-right">{s.lines}L</span>
+                    <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.time_ms)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-white/60 text-sm w-16 text-right">L{s.level}</span>
+                    <span className="text-pink-400 font-bold w-24 text-right">{s.score.toLocaleString()}</span>
+                  </>
+                )}
+              </div>
+            );
+          })
+        ) : localList.length === 0 ? (
+          <div className="text-white/50 text-center py-8">No scores yet. Go play!</div>
+        ) : localList.map((s, i) => {
+          const badge = rankBadge(i);
+          return (
+            <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+              <span className="w-10 text-sm" style={badge ? { color: badge.color, textShadow: badge.shadow } : { color: "#c4b5fd" }}>
+                {badge ? badge.icon : `#${i+1}`}
+              </span>
+              <span className="flex-1 text-white">{s.name}</span>
               {isTime ? (
                 <>
                   <span className="text-white/60 text-sm w-16 text-right">{s.lines}L</span>
-                  <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.time_ms)}</span>
+                  <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.timeMs)}</span>
                 </>
               ) : (
                 <>
@@ -817,8 +859,14 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
                 </>
               )}
             </div>
-          ))
-        ) : localList.length === 0 ? (
+          );
+        })}
+      </div>
+      {scope === "world" && tab !== "zen" && myRank >= 0 && (
+        <div className="text-xs text-purple-300/80 tracking-widest mb-4">
+          YOUR RANK: <span className="text-pink-400 font-bold">#{myRank + 1}</span> / {world.length}
+        </div>
+      )}
           <div className="text-white/50 text-center py-8">No scores yet. Go play!</div>
         ) : localList.map((s, i) => (
           <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
