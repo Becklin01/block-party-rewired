@@ -867,25 +867,6 @@ function Leaderboard({ scores, onBack }: { scores: Score[]; onBack: () => void }
           YOUR RANK: <span className="text-pink-400 font-bold">#{myRank + 1}</span> / {world.length}
         </div>
       )}
-          <div className="text-white/50 text-center py-8">No scores yet. Go play!</div>
-        ) : localList.map((s, i) => (
-          <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-            <span className="text-purple-300 w-8">#{i+1}</span>
-            <span className="flex-1 text-white">{s.name}</span>
-            {isTime ? (
-              <>
-                <span className="text-white/60 text-sm w-16 text-right">{s.lines}L</span>
-                <span className="text-cyan-300 font-bold w-28 text-right [text-shadow:_0_0_10px_#22d3ee]">{fmtTime(s.timeMs)}</span>
-              </>
-            ) : (
-              <>
-                <span className="text-white/60 text-sm w-16 text-right">L{s.level}</span>
-                <span className="text-pink-400 font-bold w-24 text-right">{s.score.toLocaleString()}</span>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
       <NeonButton onClick={onBack} variant="ghost">BACK</NeonButton>
     </div>
   );
