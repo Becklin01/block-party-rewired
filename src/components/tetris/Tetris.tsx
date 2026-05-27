@@ -415,6 +415,22 @@ export default function Tetris() {
     setCanHold(false);
   }, [hold, next, bag, canHold, drawNext]);
 
+  // Swap current falling piece with the upcoming (next) piece.
+  // Unlike Hold, this just cycles the active piece with next[0] and pushes
+  // the current piece's type to the front of the next queue.
+  const doSwapNext = useCallback(() => {
+    const p = pieceRef.current; if (!p) return;
+    if (next.length === 0) return;
+    const upcoming = next[0];
+    const candidate = spawnPiece(upcoming);
+    if (collides(boardRef.current, candidate)) { sfx.noEnergy(); return; }
+    sfx.hold();
+    const newNext = [p.type, ...next.slice(1)];
+    setPiece(candidate);
+    setNext(newNext);
+    addFloatText("SWAP");
+  }, [next, addFloatText]);
+
   // Input
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -437,13 +453,14 @@ export default function Tetris() {
       else if (e.key === "z" || e.key === "Z") { const n = tryRotate(boardRef.current, p, -1); if (n) { setPiece(n); sfx.rotate(); } }
       else if (e.key === " ") { e.preventDefault(); doHardDrop(); }
       else if (e.key === "c" || e.key === "C" || e.key === "Shift") { doHold(); }
+      else if (e.key === "v" || e.key === "V") { doSwapNext(); }
       else if (e.key === "1") { useAbility("bomb"); }
       else if (e.key === "2") { useAbility("freeze"); }
       else if (e.key === "3") { useAbility("drill"); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [screen, startGame, doHardDrop, doHold, useAbility]);
+  }, [screen, startGame, doHardDrop, doHold, doSwapNext, useAbility]);
 
 
   const speed = Math.round(1000 / gravity * 10) / 10;
@@ -576,6 +593,7 @@ export default function Tetris() {
                 <div>Z  Rotate ←</div>
                 <div>Space  Hard drop</div>
                 <div>C / Shift  Hold</div>
+                <div>V  Swap w/ Next</div>
                 <div>1 2 3  Abilities</div>
                 <div>Esc  Pause</div>
               </div>
