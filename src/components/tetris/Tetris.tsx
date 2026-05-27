@@ -522,7 +522,18 @@ export default function Tetris() {
                   animation: "floatUp 1.1s ease-out forwards",
                 }}>{f.text}</div>
             ))}
-            {screen === "paused" && <Overlay title="PAUSED" subtitle="Press ESC to resume" />}
+            {screen === "paused" && (
+              <Overlay
+                title="PAUSED"
+                subtitle="Press ESC to resume"
+                actions={
+                  <>
+                    <NeonButton onClick={() => setScreen("playing")}>Resume</NeonButton>
+                    <NeonButton onClick={() => { stopMusic(); setScreen("menu"); }} variant="ghost">Quit</NeonButton>
+                  </>
+                }
+              />
+            )}
             {screen === "over" && (
               <Overlay
                 title={mode === "sprint" && lines >= SPRINT_GOAL ? "FINISHED!" : mode === "ultra" ? "TIME UP" : "GAME OVER"}
